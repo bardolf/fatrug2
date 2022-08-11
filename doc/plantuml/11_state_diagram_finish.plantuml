@@ -1,0 +1,17 @@
+@startuml
+
+title Finish Device
+
+state "STATE_START" as start
+state "STATE_READY" as ready
+state "STATE_RUN" as run
+state "STATE_FINISH" as finish
+
+[*] --> start
+start --> ready : message (start)
+ready --> run : message (run)
+run --> run 
+run --> start : message (reset)
+run --> finish : laser signal
+finish --> ready : message (ready)
+@enduml

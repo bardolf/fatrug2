@@ -1,0 +1,16 @@
+@startuml
+
+title Start Device
+
+state "STATE_START" as start
+state "STATE_READY" as ready
+state "STATE_RUN" as run
+state "STATE_FINISH" as finish
+
+[*] --> start
+start --> ready : message (ack)
+ready --> run : laser signal
+run --> start : timeout / \nreset button
+run --> finish : message (finish)
+finish --> ready : timeout / \nreset button
+@enduml
