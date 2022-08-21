@@ -1,18 +1,18 @@
 #include <Arduino.h>
 #include <Bounce2.h>
 #include <FastLED.h>
+#include <TM1637Display.h>
 #include <WiFi.h>
 #include <Wire.h>
 #include <esp_now.h>
 
 #include "logging.h"
+#include "rgbled.h"
 
 // Constants
 #define DEVICE_TYPE 0  // defines whether is it start (0) or finish (1) device
 
 #define RESET_BUTTON_PIN 27  // onboard button
-#define RGB_LED_PIN 2        // onboard led
-#define NUM_LEDS 1           // number of rgb leds
 #define SEND_QUEUE_LENGTH 5
 #define STATE_MACHINE_EVENT_QUEUE_LENGTH 5
 
@@ -34,7 +34,7 @@ typedef struct Message {
 
 // Global Variables
 unsigned int currentState = STATE_START;
-CRGB leds[NUM_LEDS];
+RgbLed rgbLed;
 Bounce bounce = Bounce();
 QueueHandle_t sendQueue;
 QueueHandle_t stateMachineEventQueue;
@@ -69,16 +69,12 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
 
 // Tasks
 void startStateMachineTask(void *pvParameters) {
-   switch (currentState) {
-      case STATE_START:
+    switch (currentState) {
+        case STATE_START:
 
-      break;
-   }
+            break;
+    }
 }
-
-void finishStateMachineTask(void *pvParameters) {
-}
-
 
 void readResetButtonTask(void *pvParameters) {
     while (1) {
@@ -100,9 +96,20 @@ void readResetButtonTask(void *pvParameters) {
     }
 }
 
+void updateTgbLedTask(void *pvParameters) {    
+    while (1) {
+        rgbLed.update();        
+        vTaskDelay(10 / portTICK_PERIOD_MS);        
+    }
+}
+
 void setup() {
     Serial.begin(115200);
-    FastLED.addLeds<NEOPIXEL, RGB_LED_PIN>(leds, NUM_LEDS);
+    rgbLed.init();
+
+    // rgbLed.setSolidColor(CRGB::Blue, 5);
+    rgbLed.setBlinkingColor(CRGB::Red, 50);
+    xTaskCreatePinnedToCore(updateTgbLedTask, "Update RGB LED Task", 1200, NULL, 2, NULL, ARDUINO_RUNNING_CORE);
 }
 
 void loop() {
