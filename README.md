@@ -21,7 +21,7 @@ Schema and PCB drawn in KiCAD and files are part of the project. Peripherials ar
 
 ![WS2812](doc/img/05_rgb_led.png)
 
-- button, connected to ground and PIN D2 (25) 
+- button (reset), connected to ground and PIN D2 (25) 
 
 ![button](doc/img/06_button.png)
 
@@ -29,6 +29,9 @@ Schema and PCB drawn in KiCAD and files are part of the project. Peripherials ar
 
 ![battery](doc/img/07_battery.png)
 
+- switch ([aliexpress](https://www.aliexpress.com/item/1005003268288232.html?spm=a2g0o.order_detail.0.0.5ad3f19ccqQfnJ))
+
+![switch](doc/img/09_switch.png)
 
 - 2x resistor 20k - for battery capacity measurement on PIN A0 (36)
 
@@ -51,3 +54,8 @@ If you make your own BOM don't forget to [multiply it by two](https://youtube.co
 
 ## Photos
 
+![photo1](doc/img/10_photo1.jpg)
+
+![photo2](doc/img/11_photo2.jpg)
+
+![photo3](doc/img/12_photo3.jpg)
