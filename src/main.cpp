@@ -8,6 +8,7 @@
 
 #include "logging.h"
 #include "rgbled.h"
+#include "display.h"
 
 // Constants
 #define DEVICE_TYPE 0  // defines whether is it start (0) or finish (1) device
@@ -36,6 +37,8 @@ typedef struct Message {
 unsigned int currentState = STATE_START;
 RgbLed rgbLed;
 Bounce bounce = Bounce();
+Display display = Display();
+
 QueueHandle_t sendQueue;
 QueueHandle_t stateMachineEventQueue;
 
@@ -96,9 +99,16 @@ void readResetButtonTask(void *pvParameters) {
     }
 }
 
-void updateTgbLedTask(void *pvParameters) {    
+void updateRgbLedTask(void *pvParameters) {    
     while (1) {
         rgbLed.update();        
+        vTaskDelay(10 / portTICK_PERIOD_MS);        
+    }
+}
+
+void updateDisplayTask(void *pvParameters) {    
+    while (1) {
+        display.update();        
         vTaskDelay(10 / portTICK_PERIOD_MS);        
     }
 }
@@ -106,10 +116,12 @@ void updateTgbLedTask(void *pvParameters) {
 void setup() {
     Serial.begin(115200);
     rgbLed.init();
+    display.init();
 
     // rgbLed.setSolidColor(CRGB::Blue, 5);
     rgbLed.setBlinkingColor(CRGB::Red, 50);
-    xTaskCreatePinnedToCore(updateTgbLedTask, "Update RGB LED Task", 1200, NULL, 2, NULL, ARDUINO_RUNNING_CORE);
+    xTaskCreatePinnedToCore(updateRgbLedTask, "Update RGB LED Task", 1200, NULL, 2, NULL, ARDUINO_RUNNING_CORE);
+    xTaskCreatePinnedToCore(updateDisplayTask, "Update Display Task", 1200, NULL, 2, NULL, ARDUINO_RUNNING_CORE);
 }
 
 void loop() {
