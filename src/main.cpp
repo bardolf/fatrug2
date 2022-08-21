@@ -6,9 +6,10 @@
 #include <Wire.h>
 #include <esp_now.h>
 
+#include "battery.h"
+#include "display.h"
 #include "logging.h"
 #include "rgbled.h"
-#include "display.h"
 
 // Constants
 #define DEVICE_TYPE 0  // defines whether is it start (0) or finish (1) device
@@ -38,6 +39,7 @@ unsigned int currentState = STATE_START;
 RgbLed rgbLed;
 Bounce bounce = Bounce();
 Display display = Display();
+Battery batery = Battery();
 
 QueueHandle_t sendQueue;
 QueueHandle_t stateMachineEventQueue;
@@ -99,19 +101,21 @@ void readResetButtonTask(void *pvParameters) {
     }
 }
 
-void updateRgbLedTask(void *pvParameters) {    
+void updateRgbLedTask(void *pvParameters) {
     while (1) {
-        rgbLed.update();        
-        vTaskDelay(10 / portTICK_PERIOD_MS);        
+        rgbLed.update();
+        vTaskDelay(10 / portTICK_PERIOD_MS);
     }
 }
 
-void updateDisplayTask(void *pvParameters) {    
+void updateBatteryTask(void *pvParameters) {
     while (1) {
-        display.update();        
-        vTaskDelay(10 / portTICK_PERIOD_MS);        
+        batery.update();
+        display.showNumberDec(batery.getValue());
+        vTaskDelay(5000 / portTICK_PERIOD_MS);
     }
 }
+
 
 void setup() {
     Serial.begin(115200);
@@ -121,7 +125,7 @@ void setup() {
     // rgbLed.setSolidColor(CRGB::Blue, 5);
     rgbLed.setBlinkingColor(CRGB::Red, 50);
     xTaskCreatePinnedToCore(updateRgbLedTask, "Update RGB LED Task", 1200, NULL, 2, NULL, ARDUINO_RUNNING_CORE);
-    xTaskCreatePinnedToCore(updateDisplayTask, "Update Display Task", 1200, NULL, 2, NULL, ARDUINO_RUNNING_CORE);
+    xTaskCreatePinnedToCore(updateBatteryTask, "Update Battery Task", 1200, NULL, 2, NULL, ARDUINO_RUNNING_CORE);
 }
 
 void loop() {

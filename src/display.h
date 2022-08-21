@@ -13,10 +13,7 @@ class Display {
      */
     void init();
 
-    /**
-     * @brief Update callback
-     */
-    void update();
+    void showNumberDec(int num);
 
    private:
     TM1637Display* _tm1637;

@@ -11,6 +11,6 @@ void Display::init() {
     _tm1637->setBrightness(7);
 }
 
-void Display::update() {
-    _tm1637->showNumberDecEx(9876);
+void Display::showNumberDec(int num) {
+    _tm1637->showNumberDec(num);
 }
