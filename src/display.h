@@ -14,6 +14,7 @@ class Display {
     void init();
 
     void showNumberDec(int num);
+    void showTime(uint32_t ms);
 
    private:
     TM1637Display* _tm1637;

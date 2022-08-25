@@ -12,7 +12,8 @@
 #include "rgbled.h"
 
 // Constants
-#define DEVICE_TYPE 0  // defines whether is it start (0) or finish (1) device
+#define DEVICE_TYPE 0        // defines whether is it start (0) or finish (1) device
+#define LASER_THRESHOLD 200  // defines threshold distance in mm
 
 #define RESET_BUTTON_PIN 27  // onboard button
 #define SEND_QUEUE_LENGTH 5
@@ -39,7 +40,8 @@ unsigned int currentState = STATE_START;
 RgbLed rgbLed;
 Bounce bounce = Bounce();
 Display display = Display();
-Battery batery = Battery();
+Battery battery = Battery();
+uint32_t startTime = 0;
 
 QueueHandle_t sendQueue;
 QueueHandle_t stateMachineEventQueue;
@@ -72,15 +74,6 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
     }
 }
 
-// Tasks
-void startStateMachineTask(void *pvParameters) {
-    switch (currentState) {
-        case STATE_START:
-
-            break;
-    }
-}
-
 void readResetButtonTask(void *pvParameters) {
     while (1) {
         vTaskDelay(50 / portTICK_PERIOD_MS);
@@ -110,15 +103,39 @@ void updateRgbLedTask(void *pvParameters) {
 
 void updateBatteryTask(void *pvParameters) {
     while (1) {
-        batery.update();
-        display.showNumberDec(batery.getValue());
+        battery.update();
+        Log.infoln("Battery value %d", battery.getValue());
         vTaskDelay(5000 / portTICK_PERIOD_MS);
     }
 }
 
+void updateDisplay(void *pvParameters) {
+    while (1) {
+        switch (currentState) {
+            case STATE_START:
+                display.showTime(0);
+                startTime = millis();
+                currentState = STATE_RUN;
+                break;
+            case STATE_RUN:
+                display.showTime(millis() - startTime);
+                break;
+        }
+        vTaskDelay(20 / portTICK_PERIOD_MS);
+    }
+}
 
 void setup() {
     Serial.begin(115200);
+    // initialize logging
+    while (!Serial && !Serial.available()) {
+    }
+    Log.begin(LOG_LEVEL_INFO, &Serial);
+    Log.setPrefix(printPrefix);
+    Log.setShowLevel(false);
+    Log.infoln("START");
+
+
     rgbLed.init();
     display.init();
 
@@ -126,6 +143,7 @@ void setup() {
     rgbLed.setBlinkingColor(CRGB::Red, 50);
     xTaskCreatePinnedToCore(updateRgbLedTask, "Update RGB LED Task", 1200, NULL, 2, NULL, ARDUINO_RUNNING_CORE);
     xTaskCreatePinnedToCore(updateBatteryTask, "Update Battery Task", 1200, NULL, 2, NULL, ARDUINO_RUNNING_CORE);
+    xTaskCreatePinnedToCore(updateDisplay, "Update Display Task", 1200, NULL, 2, NULL, ARDUINO_RUNNING_CORE);
 }
 
 void loop() {
