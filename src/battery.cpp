@@ -18,10 +18,8 @@ USB connected, battery disconnected
 USB connected, battery (discharged) connected 
         139         134
 USB disconnected, battery (charged - 4.15 / 4.13V) connected
-        147         146 
-
+        147         145
 */
-
 Battery::Battery() {
 }
 

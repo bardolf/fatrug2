@@ -13,7 +13,7 @@ Schema and PCB drawn in KiCAD and files are part of the project. Peripherials ar
 
 ![GY-VL53L0X](doc/img/03_laser_GY-VL53L0X_I2C.png)
 
-- TM1637 4-Digit LED 0.56" 0.56inch 7 Segments Display, connected via connector labeled _7seg_
+- TM1637 4-Digit LED 0.56" 0.56inch 7 Segments Display, connected via connector labeled _7seg_. Beware: more common display is the one with colon wired and dots unwired. Choose based on your preferences.
 
 ![TM1637](doc/img/04_TM1637.png)
 

@@ -7,6 +7,7 @@
 #include <esp_now.h>
 
 #include "battery.h"
+#include "detector.h"
 #include "display.h"
 #include "logging.h"
 #include "rgbled.h"
@@ -15,9 +16,7 @@
 #define DEVICE_TYPE 0        // defines whether is it start (0) or finish (1) device
 #define LASER_THRESHOLD 200  // defines threshold distance in mm
 
-#define RESET_BUTTON_PIN 27  // onboard button
-#define SEND_QUEUE_LENGTH 5
-#define STATE_MACHINE_EVENT_QUEUE_LENGTH 5
+#define RESET_BUTTON_PIN 25  // ext. reset button pin
 
 #define STATE_START 0
 #define STATE_READY 1
@@ -28,6 +27,8 @@
 #define EVENT_BUTTON_RESET 2
 #define EVENT_MESSAGE_ACK 3
 #define EVENT_MESSAGE_FINISH 3
+#define EVENT_DETECTOR_OBJECT_LEFT 4
+#define EVENT_DETECTOR_OBJECT_ARRIVED 5
 
 // Types
 typedef struct Message {
@@ -38,9 +39,10 @@ typedef struct Message {
 // Global Variables
 unsigned int currentState = STATE_START;
 RgbLed rgbLed;
-Bounce bounce = Bounce();
-Display display = Display();
-Battery battery = Battery();
+Bounce bounce;
+Display display;
+Battery battery;
+Detector detector;
 uint32_t startTime = 0;
 
 QueueHandle_t sendQueue;
@@ -80,7 +82,7 @@ void readResetButtonTask(void *pvParameters) {
         bounce.update();
         if (bounce.changed()) {
             int deboucedInput = bounce.read();
-            if (deboucedInput == LOW) {
+            if (deboucedInput == HIGH) {
                 Message message;
                 message.event = EVENT_BUTTON_RESET;
                 if (xQueueSend(sendQueue, &message, 0) != pdTRUE) {
@@ -113,20 +115,81 @@ void updateDisplay(void *pvParameters) {
     while (1) {
         switch (currentState) {
             case STATE_START:
+                display.showNumberDec(1111);
+                break;
+            case STATE_READY:
                 display.showTime(0);
-                startTime = millis();
-                currentState = STATE_RUN;
                 break;
             case STATE_RUN:
                 display.showTime(millis() - startTime);
                 break;
         }
-        vTaskDelay(20 / portTICK_PERIOD_MS);
+        vTaskDelay(25 / portTICK_PERIOD_MS);
+    }
+}
+
+void stateMachineTask(void *pvParameters) {
+    Message message;
+    while (1) {
+        if (xQueueReceive(stateMachineEventQueue, (void *)&message, 10000) == pdTRUE) {
+            Log.infoln("SM: event %d", message.event);
+            switch (currentState) {
+                case STATE_START:
+                    if (message.event == EVENT_MESSAGE_ACK) {
+                        currentState = STATE_READY;
+                        detector.startMeasurement();
+                    }
+                    break;
+                case STATE_READY:
+                    if (message.event == EVENT_DETECTOR_OBJECT_LEFT) {
+                        currentState = STATE_RUN;
+                        startTime = millis();
+                    }
+                case STATE_RUN:
+                    if (message.event == EVENT_BUTTON_RESET) {
+                        currentState = STATE_READY;
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }
+        Log.infoln("SM: state %d", currentState);
+    }
+}
+
+void updateDetectorTask(void *pvParameters) {
+    while (1) {
+        detector.update();
+        vTaskDelay(5 / portTICK_PERIOD_MS);
+    }
+}
+
+void readDetectorTask(void *pvParameters) {
+    while (1) {
+        if (detector.isObjectArrived()) {
+            Log.infoln("Object arrived.");
+            Message message;
+            message.event = EVENT_DETECTOR_OBJECT_ARRIVED;
+            if (xQueueSend(stateMachineEventQueue, (void *)&message, 0) != pdTRUE) {
+                Log.errorln("Problem while putting a message to a queue, queue is full?");
+            }
+        }
+        if (detector.isObjectLeft()) {
+            Log.infoln("Object left.");
+            Message message;
+            message.event = EVENT_DETECTOR_OBJECT_LEFT;            
+            if (xQueueSend(stateMachineEventQueue, (void *)&message, 0) != pdTRUE) {
+                Log.errorln("Problem while putting a message to a queue, queue is full?");
+            }
+        }
+        vTaskDelay(5 / portTICK_PERIOD_MS);
     }
 }
 
 void setup() {
     Serial.begin(115200);
+
     // initialize logging
     while (!Serial && !Serial.available()) {
     }
@@ -135,15 +198,38 @@ void setup() {
     Log.setShowLevel(false);
     Log.infoln("START");
 
+    // initialize queues
+    stateMachineEventQueue = xQueueCreate(10, sizeof(Message));
+    sendQueue = xQueueCreate(10, sizeof(Message));
 
+    //reset button initialization
+    bounce.attach(RESET_BUTTON_PIN, INPUT_PULLUP);
+    bounce.interval(10);
+
+    //rgb and display initialization
     rgbLed.init();
     display.init();
 
+    //laser detector initialization
+    if (!detector.init()) {
+        Log.errorln("Problem with detector initialization.");
+    }
+
     // rgbLed.setSolidColor(CRGB::Blue, 5);
     rgbLed.setBlinkingColor(CRGB::Red, 50);
-    xTaskCreatePinnedToCore(updateRgbLedTask, "Update RGB LED Task", 1200, NULL, 2, NULL, ARDUINO_RUNNING_CORE);
-    xTaskCreatePinnedToCore(updateBatteryTask, "Update Battery Task", 1200, NULL, 2, NULL, ARDUINO_RUNNING_CORE);
-    xTaskCreatePinnedToCore(updateDisplay, "Update Display Task", 1200, NULL, 2, NULL, ARDUINO_RUNNING_CORE);
+    xTaskCreatePinnedToCore(updateRgbLedTask, "Upd. RGB Task", 8000, NULL, 2, NULL, ARDUINO_RUNNING_CORE);
+    xTaskCreatePinnedToCore(updateBatteryTask, "Upd. Battery Task", 8000, NULL, 2, NULL, ARDUINO_RUNNING_CORE);
+    xTaskCreatePinnedToCore(updateDisplay, "Upd. Display Task", 8000, NULL, 2, NULL, ARDUINO_RUNNING_CORE);
+    xTaskCreatePinnedToCore(stateMachineTask, "State Machine Task", 8000, NULL, 2, NULL, ARDUINO_RUNNING_CORE);
+    xTaskCreatePinnedToCore(updateDetectorTask, "Upd. Detector Task", 8000, NULL, 4, NULL, ARDUINO_RUNNING_CORE);
+    xTaskCreatePinnedToCore(readDetectorTask, "Read Detector Task", 8000, NULL, 4, NULL, ARDUINO_RUNNING_CORE);
+    xTaskCreatePinnedToCore(readResetButtonTask, "Reset Button Task", 8000, NULL, 2, NULL, ARDUINO_RUNNING_CORE);
+
+    Message message;
+    message.event = EVENT_MESSAGE_ACK;
+    if (xQueueSend(stateMachineEventQueue, (void *)&message, 0) != pdTRUE) {
+        Log.errorln("Problem while putting a message to a queue, queue is full?");
+    }
 }
 
 void loop() {

@@ -1,7 +1,5 @@
 #include "display.h"
 
-#include "logging.h"
-
 #define CLK 14
 #define DIO 13
 
@@ -18,9 +16,8 @@ void Display::showNumberDec(int num) {
 }
 
 void Display::showTime(uint32_t millis) {
-    int divider = 1;
-    Log.trace("Showing time %ld", millis);
-    // less than 99.99s
+    int divider = 1;    
+    // less than 99.99s    
     if (millis <= 59999) {
         _tm1637->showNumberDecEx(millis / 10, 0b01000000);
     } else {
