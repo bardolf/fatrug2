@@ -118,7 +118,7 @@ void updateDisplay(void *pvParameters) {
                 display.showNumberDec(1111);
                 break;
             case STATE_READY:
-                display.showTime(0);
+                display.showZeroTime();
                 break;
             case STATE_RUN:
                 display.showTime(millis() - startTime);
