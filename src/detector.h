@@ -21,6 +21,7 @@ class Detector {
     bool _firstMeasurement = true;
     bool _currObjectDetected;
     bool _prevObjectDetected;
+    bool _fixPrevObjectDetected;
 };
 
 #endif

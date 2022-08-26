@@ -1,8 +1,9 @@
 #include "detector.h"
+
 #include "logging.h"
 
-#define TIMING_BUDGET 20000
-#define RANGE_THRESHOLD 200
+#define TIMING_BUDGET 40000
+#define RANGE_THRESHOLD 1000
 
 Detector::Detector() {
 }
@@ -17,7 +18,10 @@ bool Detector::init() {
     return false;
 }
 
-void Detector::startMeasurement() {
+void Detector::startMeasurement() {    
+    _prevObjectDetected = false;
+    _currObjectDetected = false;
+    _fixPrevObjectDetected = false;
     _firstMeasurement = true;
     _measurementEnabled = true;
 }
@@ -30,11 +34,19 @@ void Detector::update() {
     if (!_measurementEnabled) {
         return;
     }
-    
+
     if (_lox->isRangeComplete()) {
         uint16_t range = _lox->readRange();
         bool objectDetected = range > 0 && range <= RANGE_THRESHOLD;
-
+        if (!_fixPrevObjectDetected) {
+            _fixPrevObjectDetected = true;
+            return;
+        }
+        if (objectDetected) {
+            Log.info("Object range: %d", range);
+        } else {
+            _fixPrevObjectDetected = false;
+        }
         if (_firstMeasurement) {
             _currObjectDetected = objectDetected;
             _prevObjectDetected = objectDetected;
@@ -47,9 +59,15 @@ void Detector::update() {
 }
 
 bool Detector::isObjectLeft() {
-    return _prevObjectDetected && !_currObjectDetected;
+    if (!_measurementEnabled) {
+        return false;
+    }
+    return _prevObjectDetected && !_currObjectDetected;    
 }
 
 bool Detector::isObjectArrived() {
+    if (!_measurementEnabled) {
+        return false;
+    }
     return !_prevObjectDetected && _currObjectDetected;
 }
