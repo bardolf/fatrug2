@@ -2,17 +2,18 @@
 
 #include "logging.h"
 
-#define TIMING_BUDGET 40000
-#define RANGE_THRESHOLD 1000
+#define TIMING_BUDGET 30000
+#define RANGE_THRESHOLD 600
 
 Detector::Detector() {
 }
 
 bool Detector::init() {
-    _lox = new Adafruit_VL53L0X();
+    _lox = new Adafruit_VL53L0X();    
     if (_lox->begin()) {
+        _lox->configSensor(_lox->VL53L0X_SENSE_HIGH_SPEED);
         _lox->setMeasurementTimingBudgetMicroSeconds(TIMING_BUDGET);
-        _lox->startRangeContinuous();
+        _lox->startRangeContinuous();        
         return true;
     }
     return false;
