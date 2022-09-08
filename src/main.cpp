@@ -140,8 +140,8 @@ void updateRgbLedTask(void *pvParameters) {
 void updateBatteryTask(void *pvParameters) {
     while (1) {
         battery.update();
-        // Log.infoln("Battery value %d", battery.getValue());
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
+        Log.infoln("Battery value %d prct", battery.getPercentage());
+        vTaskDelay(1000 * 60 / portTICK_PERIOD_MS);
     }
 }
 

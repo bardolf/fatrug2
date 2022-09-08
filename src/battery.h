@@ -8,12 +8,12 @@ class Battery {
     Battery();
 
     void update();
-
-    uint16_t getValue();
-    u_int8_t getPercentage();
+    uint8_t getValue();
+    int getPercentage();
 
    private:
-    uint16_t _value;
+    uint8_t _value;
+    int computePercentage(uint8_t value);
 };
 
 #endif
