@@ -13,31 +13,55 @@
 #include "rgbled.h"
 
 // Constants
-#define DEVICE_TYPE 1        // defines whether is it start (0) or finish (1) device
+#define DEVICE_TYPE 1  // defines whether is it start (0) or finish (1) device
 
-#define RESET_BUTTON_PIN 25  // ext. reset button pin
+#define RESET_BUTTON_PIN 0  // ext. reset button pin
 
-#define STATE_START 0
-#define STATE_READY 1
-#define STATE_RUN 2
-#define STATE_FINISH 3
+typedef enum {
+    STATE_START,
+    STATE_READY,
+    STATE_RUN,
+    STATE_FINISH
+} State;
 
-#define EVENT_SEND_ERROR 1
-#define EVENT_BUTTON_RESET 2
-#define EVENT_MESSAGE_INIT 3
-#define EVENT_MESSAGE_ACK 4
-#define EVENT_MESSAGE_FINISH 5
-#define EVENT_DETECTOR_OBJECT_LEFT 6
-#define EVENT_DETECTOR_OBJECT_ARRIVED 7
+// used for logging/debuggin purposes
+const char *stateName(State state) {
+    static char const *stateNames[4] = {"STATE_START", "STATE_READY", "STATE_RUN", "STATE_FINISH"};
+    if (state >= 0 && state < 4) {
+        return stateNames[state];
+    } else {
+        return "UNDEFINED";
+    }
+}
+
+typedef enum {
+    EVENT_SEND_ERROR, 
+    EVENT_BUTTON_RESET,
+    EVENT_MESSAGE_INIT,
+    EVENT_MESSAGE_ACK,
+    EVENT_MESSAGE_FINISH,
+    EVENT_DETECTOR_OBJECT_LEFT,
+    EVENT_DETECTOR_OBJECT_ARRIVED
+} Event;
+
+// used for logging/debuggin purposes
+const char *eventName(Event event) {
+    static char const *eventNames[7] = {"EVENT_SEND_ERROR", "EVENT_BUTTON_RESET", "EVENT_MESSAGE_INIT", "EVENT_MESSAGE_ACK", "EVENT_MESSAGE_FINISH", "EVENT_DETECTOR_OBJECT_LEFT", "EVENT_DETECTOR_OBJECT_ARRIVED"};
+    if (event >= 0 && event < 7) {
+        return eventNames[event];
+    } else {
+        return "UNDEFINED";
+    }
+}
 
 // Types
 typedef struct Message {
-    byte event;
+    Event event;
     unsigned long time;
 } Message;
 
 // Global Variables
-unsigned int currentState = STATE_START;
+State currentState = STATE_START;
 RgbLed rgbLed;
 Bounce bounce;
 Display display;
@@ -85,7 +109,7 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
 void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
     Message message;
     memcpy(&message, incomingData, sizeof(message));
-    Log.infoln("Received message event %d  and time %d", message.event, message.time);
+    Log.infoln("Received message event %s  and time %d", eventName(message.event), message.time);
     addStateMachineQueue(message);
 }
 
@@ -144,7 +168,7 @@ void stateMachineStartDeviceTask(void *pvParameters) {
     Message message;
     while (1) {
         if (xQueueReceive(stateMachineEventQueue, (void *)&message, 10000) == pdTRUE) {
-            Log.infoln("SM: state %d, event %d", currentState, message.event);
+            Log.infoln("SM: state %s, event %s", stateName(currentState), eventName(message.event));
             if (message.event == EVENT_BUTTON_RESET) {
                 currentState = STATE_START;
                 detector.stopMeasurement();
@@ -159,12 +183,13 @@ void stateMachineStartDeviceTask(void *pvParameters) {
                     break;
                 case STATE_READY:
                     if (message.event == EVENT_DETECTOR_OBJECT_LEFT) {
+                        detector.stopMeasurement();
                         currentState = STATE_RUN;
                         startTime = millis();
                         Message message;
                         message.event = EVENT_DETECTOR_OBJECT_LEFT;
                         addSendQueue(message);
-                        detector.stopMeasurement();
+                        
                     }
                     break;
                 case STATE_RUN:
@@ -182,7 +207,7 @@ void stateMachineStartDeviceTask(void *pvParameters) {
                     break;
             }
         }
-        Log.infoln("SM: new state %d", currentState);
+        Log.infoln("SM: new state %s", stateName(currentState));
     }
 }
 
@@ -190,7 +215,7 @@ void stateMachineFinishDeviceTask(void *pvParameters) {
     Message message;
     while (1) {
         if (xQueueReceive(stateMachineEventQueue, (void *)&message, 10000) == pdTRUE) {
-            Log.infoln("SM: state %d, event %d", currentState, message.event);
+            Log.infoln("SM: state %s, event %s", stateName(currentState), eventName(message.event));
             if (message.event == EVENT_BUTTON_RESET) {
                 currentState = STATE_START;
                 detector.stopMeasurement();
@@ -208,6 +233,7 @@ void stateMachineFinishDeviceTask(void *pvParameters) {
                 case STATE_READY:
                     if (message.event == EVENT_DETECTOR_OBJECT_LEFT) {
                         currentState = STATE_RUN;
+                        // delay(1000);
                         detector.startMeasurement();
                         startTime = millis();
                     }
@@ -228,7 +254,7 @@ void stateMachineFinishDeviceTask(void *pvParameters) {
                     break;
             }
         }
-        Log.infoln("SM: new state %d", currentState);
+        Log.infoln("SM: new state %s", stateName(currentState));
     }
 }
 
@@ -240,28 +266,21 @@ void stateMachineTask(void *pvParameters) {
     }
 }
 
-void updateDetectorTask(void *pvParameters) {
-    while (1) {
-        detector.update();
-        vTaskDelay(5 / portTICK_PERIOD_MS);
-    }
-}
-
 void readDetectorTask(void *pvParameters) {
     while (1) {
-        if (detector.isObjectArrived()) {
-            Log.infoln("Object arrived.");
+        DetectedObjectState detectedObjectState = detector.read();
+        if (detectedObjectState == ARRIVED) {
             Message message;
             message.event = EVENT_DETECTOR_OBJECT_ARRIVED;
             addStateMachineQueue(message);
-        }
-        if (detector.isObjectLeft()) {
-            Log.infoln("Object left.");
+            Log.infoln("Object arrived");
+        } else if (detectedObjectState == LEFT) {
             Message message;
             message.event = EVENT_DETECTOR_OBJECT_LEFT;
             addStateMachineQueue(message);
+            Log.infoln("Object left");
         }
-        vTaskDelay(5 / portTICK_PERIOD_MS);
+        vTaskDelay(10 / portTICK_PERIOD_MS);
     }
 }
 
@@ -281,7 +300,7 @@ void communicationTask(void *pvParameters) {
     Message message;
     while (1) {
         if (xQueueReceive(sendQueue, (void *)&message, 10000) == pdTRUE) {
-            Log.infoln("Sending message %d from %s", message.event, WiFi.macAddress().c_str());
+            Log.infoln("Sending message %s from %s", eventName(message.event), WiFi.macAddress().c_str());
             uint8_t *address = startDeviceAddress;
             esp_err_t result = esp_now_send(peerInfo.peer_addr, (uint8_t *)&message, sizeof(message));
             if (result != ESP_OK) {
@@ -314,10 +333,8 @@ void setup() {
     rgbLed.init();
     display.init();
 
-    // laser detector initialization
-    if (!detector.init()) {
-        Log.errorln("Problem with detector initialization.");
-    }
+    // detector initialization
+    detector.init();
 
     // communication initialization
     WiFi.mode(WIFI_MODE_STA);
@@ -345,8 +362,7 @@ void setup() {
     xTaskCreatePinnedToCore(updateBatteryTask, "Upd. battery", 8000, NULL, 2, NULL, ARDUINO_RUNNING_CORE);
     xTaskCreatePinnedToCore(updateDisplay, "Upd. display", 8000, NULL, 2, NULL, ARDUINO_RUNNING_CORE);
     xTaskCreatePinnedToCore(stateMachineTask, "State machine", 8000, NULL, 2, NULL, ARDUINO_RUNNING_CORE);
-    xTaskCreatePinnedToCore(updateDetectorTask, "Upd. detector", 8000, NULL, 4, NULL, ARDUINO_RUNNING_CORE);
-    xTaskCreatePinnedToCore(readDetectorTask, "Read detector", 8000, NULL, 4, NULL, ARDUINO_RUNNING_CORE);
+    xTaskCreatePinnedToCore(readDetectorTask, "Read detector", 8000, NULL, 6, NULL, ARDUINO_RUNNING_CORE);
     xTaskCreatePinnedToCore(readResetButtonTask, "Reset button", 8000, NULL, 2, NULL, ARDUINO_RUNNING_CORE);
     xTaskCreatePinnedToCore(communicationTask, "Communication", 8000, NULL, 3, NULL, ARDUINO_RUNNING_CORE);
     if (isStartDevice()) {

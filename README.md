@@ -59,3 +59,10 @@ If you make your own BOM don't forget to [multiply it by two](https://youtube.co
 ![photo2](doc/img/11_photo2.jpg)
 
 ![photo3](doc/img/12_photo3.jpg)
+
+## Debugging 
+
+```shell 
+stty -F /dev/ttyUSB0 115200
+cat /dev/ttyUSB0
+```

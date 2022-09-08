@@ -1,27 +1,32 @@
 #ifndef detector_h
 #define detector_h
 
-#include <Adafruit_VL53L0X.h>
 #include <Arduino.h>
-#include <Wire.h>
+
+#define TRIGGER_PIN 26
+#define ECHO_PIN 25
+#define RANGE_THRESHOLD_CM 80
+#define SOUND_SPEED_HALF 0.017
+
+typedef enum {
+  NONE,
+  ARRIVED,
+  LEFT
+} DetectedObjectState;
 
 class Detector {
    public:
     Detector();
-    bool init();
-    void update();
+    void init();
+    DetectedObjectState read();
     void startMeasurement();
-    void stopMeasurement();
-    bool isObjectLeft();
-    bool isObjectArrived();
+    void stopMeasurement();    
 
    private:
-    Adafruit_VL53L0X* _lox;
-    bool _measurementEnabled = false;
-    bool _firstMeasurement = true;
-    bool _currObjectDetected;
     bool _prevObjectDetected;
-    bool _fixPrevObjectDetected;
+    bool _measurementEnabled = false;
+    float measureDistance(); 
+    float _prevDistance;   
 };
 
 #endif
