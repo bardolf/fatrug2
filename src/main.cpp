@@ -13,11 +13,12 @@
 #include "rgbled.h"
 
 // Constants
-#define DEVICE_TYPE 1  // defines whether is it start (0) or finish (1) device
+#define DEVICE_TYPE 0  // defines whether is it start (0) or finish (1) device
 
 #define RESET_BUTTON_PIN 0  // ext. reset button pin
 
 typedef enum {
+    STATE_UNKNOWN,
     STATE_START,
     STATE_READY,
     STATE_RUN,
@@ -26,8 +27,8 @@ typedef enum {
 
 // used for logging/debuggin purposes
 const char *stateName(State state) {
-    static char const *stateNames[4] = {"STATE_START", "STATE_READY", "STATE_RUN", "STATE_FINISH"};
-    if (state >= 0 && state < 4) {
+    static char const *stateNames[5] = {"STATE_UNKNOWN", "STATE_START", "STATE_READY", "STATE_RUN", "STATE_FINISH"};
+    if (state >= 0 && state < 5) {
         return stateNames[state];
     } else {
         return "UNDEFINED";
@@ -35,7 +36,7 @@ const char *stateName(State state) {
 }
 
 typedef enum {
-    EVENT_SEND_ERROR, 
+    EVENT_SEND_ERROR,
     EVENT_BUTTON_RESET,
     EVENT_MESSAGE_INIT,
     EVENT_MESSAGE_ACK,
@@ -61,7 +62,7 @@ typedef struct Message {
 } Message;
 
 // Global Variables
-State currentState = STATE_START;
+State currentState = STATE_UNKNOWN;
 RgbLed rgbLed;
 Bounce bounce;
 Display display;
@@ -146,20 +147,7 @@ void updateBatteryTask(void *pvParameters) {
 
 void updateDisplay(void *pvParameters) {
     while (1) {
-        switch (currentState) {
-            case STATE_START:
-                display.showNumberDec(1111);
-                break;
-            case STATE_READY:
-                display.showZeroTime();
-                break;
-            case STATE_RUN:
-                display.showTime(millis() - startTime);
-                break;
-            case STATE_FINISH:
-                display.showTime(measuredTime);
-                break;
-        }
+        display.update();
         vTaskDelay(25 / portTICK_PERIOD_MS);
     }
 }
@@ -171,30 +159,33 @@ void stateMachineStartDeviceTask(void *pvParameters) {
             Log.infoln("SM: state %s, event %s", stateName(currentState), eventName(message.event));
             if (message.event == EVENT_BUTTON_RESET) {
                 currentState = STATE_START;
+                display.showConnecting();
                 detector.stopMeasurement();
                 continue;
             }
             switch (currentState) {
                 case STATE_START:
                     if (message.event == EVENT_MESSAGE_ACK) {
+                        display.showZeroTime();
                         currentState = STATE_READY;
                         detector.startMeasurement();
                     }
                     break;
                 case STATE_READY:
                     if (message.event == EVENT_DETECTOR_OBJECT_LEFT) {
+                        display.showTimeContinuously();
                         detector.stopMeasurement();
                         currentState = STATE_RUN;
                         startTime = millis();
                         Message message;
                         message.event = EVENT_DETECTOR_OBJECT_LEFT;
                         addSendQueue(message);
-                        
                     }
                     break;
                 case STATE_RUN:
                     if (message.event == EVENT_DETECTOR_OBJECT_ARRIVED) {
                         measuredTime = millis() - startTime;
+                        display.showTime(measuredTime);
                         message.event = EVENT_MESSAGE_FINISH;
                         message.time = measuredTime;
                         currentState = STATE_FINISH;
@@ -219,10 +210,12 @@ void stateMachineFinishDeviceTask(void *pvParameters) {
             if (message.event == EVENT_BUTTON_RESET) {
                 currentState = STATE_START;
                 detector.stopMeasurement();
+                display.showConnecting();
                 continue;
             }
             switch (currentState) {
                 case STATE_START:
+                    display.showZeroTime();
                     if (message.event == EVENT_MESSAGE_INIT) {
                         Message message;
                         message.event = EVENT_MESSAGE_ACK;
@@ -231,19 +224,22 @@ void stateMachineFinishDeviceTask(void *pvParameters) {
                     }
                     break;
                 case STATE_READY:
+                    display.showZeroTime();
                     if (message.event == EVENT_DETECTOR_OBJECT_LEFT) {
+                        display.showTimeContinuously();
                         currentState = STATE_RUN;
-                        // delay(1000);
                         detector.startMeasurement();
                         startTime = millis();
                     }
                     break;
                 case STATE_RUN:
+                    display.showTimeContinuously();
                     if (message.event == EVENT_DETECTOR_OBJECT_ARRIVED) {
                         detector.stopMeasurement();
                         addSendQueue(message);
                     } else if (message.event == EVENT_MESSAGE_FINISH) {
                         measuredTime = message.time;
+                        display.showTime(measuredTime);
                         currentState = STATE_FINISH;
                     }
                     break;
@@ -375,7 +371,11 @@ void setup() {
     addSendQueue(message);
 
     // TODO: remove
-    rgbLed.setBlinkingColor(CRGB::Red, 50);
+    rgbLed.setBlinkingColor(CRGB::Green, 15);
+
+    // start the SM
+    currentState = STATE_START;
+    display.showConnecting();
 }
 
 void loop() {
