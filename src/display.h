@@ -19,10 +19,11 @@ class Display {
     void update();
 
     void showNumber(uint16_t num);
-    void showTimeContinuously();
+    void showTimeContinuously(uint32_t time);
     void showTime(uint32_t time);
     void showZeroTime();        
     void showConnecting();
+    void showError();
 
    private:   
     TM1637Display* _tm1637;

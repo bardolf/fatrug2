@@ -21,14 +21,16 @@ typedef enum {
     STATE_UNKNOWN,
     STATE_START,
     STATE_READY,
+    STATE_RUN_CHECK,
     STATE_RUN,
-    STATE_FINISH
+    STATE_FINISH,
+    STATE_SEND_ERRROR
 } State;
 
 // used for logging/debuggin purposes
 const char *stateName(State state) {
-    static char const *stateNames[5] = {"STATE_UNKNOWN", "STATE_START", "STATE_READY", "STATE_RUN", "STATE_FINISH"};
-    if (state >= 0 && state < 5) {
+    static char const *stateNames[7] = {"STATE_UNKNOWN", "STATE_START", "STATE_READY", "STATE_RUN_CHECK", "STATE_RUN", "STATE_FINISH", "STATE_SEND_ERRROR"};
+    if (state >= 0 && state < 7) {
         return stateNames[state];
     } else {
         return "UNDEFINED";
@@ -42,13 +44,16 @@ typedef enum {
     EVENT_MESSAGE_ACK,
     EVENT_MESSAGE_FINISH,
     EVENT_DETECTOR_OBJECT_LEFT,
-    EVENT_DETECTOR_OBJECT_ARRIVED
+    EVENT_DETECTOR_OBJECT_ARRIVED,
+    EVENT_RUN_CONFIRMED,
+    EVENT_TIMEOUT
 } Event;
 
 // used for logging/debuggin purposes
 const char *eventName(Event event) {
-    static char const *eventNames[7] = {"EVENT_SEND_ERROR", "EVENT_BUTTON_RESET", "EVENT_MESSAGE_INIT", "EVENT_MESSAGE_ACK", "EVENT_MESSAGE_FINISH", "EVENT_DETECTOR_OBJECT_LEFT", "EVENT_DETECTOR_OBJECT_ARRIVED"};
-    if (event >= 0 && event < 7) {
+    static char const *eventNames[9] = {"EVENT_SEND_ERROR", "EVENT_BUTTON_RESET", "EVENT_MESSAGE_INIT", "EVENT_MESSAGE_ACK", "EVENT_MESSAGE_FINISH",
+                                        "EVENT_DETECTOR_OBJECT_LEFT", "EVENT_DETECTOR_OBJECT_ARRIVED", "EVENT_RUN_CONFIRMED", "EVENT_TIMEOUT"};
+    if (event >= 0 && event < 9) {
         return eventNames[event];
     } else {
         return "UNDEFINED";
@@ -63,6 +68,7 @@ typedef struct Message {
 
 // Global Variables
 State currentState = STATE_UNKNOWN;
+uint32_t stateChangeTime = 0;
 RgbLed rgbLed;
 Bounce bounce;
 Display display;
@@ -101,16 +107,18 @@ void addStateMachineQueue(Message message) {
 // Callback when data is sent
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
     if (status == ESP_NOW_SEND_FAIL) {
-        Message message;
-        message.event = EVENT_SEND_ERROR;
-        addStateMachineQueue(message);
+        if (currentState != STATE_START) {
+            Message message;
+            message.event = EVENT_SEND_ERROR;
+            addStateMachineQueue(message);
+        }
     }
 }
 
 void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
     Message message;
     memcpy(&message, incomingData, sizeof(message));
-    Log.infoln("Received message event %s  and time %d", eventName(message.event), message.time);
+    Log.infoln("Received message event %s and time %d", eventName(message.event), message.time);
     addStateMachineQueue(message);
 }
 
@@ -163,23 +171,38 @@ void stateMachineStartDeviceTask(void *pvParameters) {
                 detector.stopMeasurement();
                 continue;
             }
+            if (message.event == EVENT_SEND_ERROR) {
+                display.showError();
+                detector.stopMeasurement();
+                continue;
+            }
             switch (currentState) {
                 case STATE_START:
+                    detector.stopMeasurement();
                     if (message.event == EVENT_MESSAGE_ACK) {
+                        detector.startMeasurement();
                         display.showZeroTime();
                         currentState = STATE_READY;
-                        detector.startMeasurement();
+                        stateChangeTime = millis();
                     }
                     break;
                 case STATE_READY:
                     if (message.event == EVENT_DETECTOR_OBJECT_LEFT) {
-                        display.showTimeContinuously();
-                        detector.stopMeasurement();
-                        currentState = STATE_RUN;
+                        currentState = STATE_RUN_CHECK;
+                        stateChangeTime = millis();
                         startTime = millis();
-                        Message message;
-                        message.event = EVENT_DETECTOR_OBJECT_LEFT;
+                    }
+                    break;
+                case STATE_RUN_CHECK:
+                    if (message.event == EVENT_DETECTOR_OBJECT_ARRIVED) {
+                        currentState = STATE_READY;
+                    } else if (message.event == EVENT_RUN_CONFIRMED) {
+                        currentState = STATE_RUN;
+                        stateChangeTime = millis();
+                        detector.stopMeasurement();
+                        message.time = millis() - startTime;
                         addSendQueue(message);
+                        display.showTimeContinuously(millis() - startTime);
                     }
                     break;
                 case STATE_RUN:
@@ -189,10 +212,15 @@ void stateMachineStartDeviceTask(void *pvParameters) {
                         message.event = EVENT_MESSAGE_FINISH;
                         message.time = measuredTime;
                         currentState = STATE_FINISH;
+                        stateChangeTime = millis();
                         addSendQueue(message);
                     }
                     break;
                 case STATE_FINISH:
+                    if (message.event == EVENT_TIMEOUT) {
+                        currentState = STATE_START;
+                        stateChangeTime = millis();
+                    }
                     break;
                 default:
                     break;
@@ -215,25 +243,27 @@ void stateMachineFinishDeviceTask(void *pvParameters) {
             }
             switch (currentState) {
                 case STATE_START:
-                    display.showZeroTime();
+                    detector.stopMeasurement();
                     if (message.event == EVENT_MESSAGE_INIT) {
+                        vTaskDelay(500 / portTICK_PERIOD_MS);
                         Message message;
                         message.event = EVENT_MESSAGE_ACK;
                         addSendQueue(message);
+                        display.showZeroTime();
                         currentState = STATE_READY;
+                        stateChangeTime = millis();
                     }
                     break;
                 case STATE_READY:
                     display.showZeroTime();
-                    if (message.event == EVENT_DETECTOR_OBJECT_LEFT) {
-                        display.showTimeContinuously();
+                    if (message.event == EVENT_RUN_CONFIRMED) {
+                        display.showTimeContinuously(message.time);
                         currentState = STATE_RUN;
-                        detector.startMeasurement();
-                        startTime = millis();
+                        stateChangeTime = millis();
+                        startTime = message.time;
                     }
                     break;
                 case STATE_RUN:
-                    display.showTimeContinuously();
                     if (message.event == EVENT_DETECTOR_OBJECT_ARRIVED) {
                         detector.stopMeasurement();
                         addSendQueue(message);
@@ -241,10 +271,14 @@ void stateMachineFinishDeviceTask(void *pvParameters) {
                         measuredTime = message.time;
                         display.showTime(measuredTime);
                         currentState = STATE_FINISH;
+                        stateChangeTime = millis();
                     }
                     break;
                 case STATE_FINISH:
-
+                    if (message.event == EVENT_TIMEOUT) {
+                        currentState = STATE_START;
+                        stateChangeTime = millis();
+                    }
                     break;
                 default:
                     break;
@@ -296,13 +330,30 @@ void communicationTask(void *pvParameters) {
     Message message;
     while (1) {
         if (xQueueReceive(sendQueue, (void *)&message, 10000) == pdTRUE) {
-            Log.infoln("Sending message %s from %s", eventName(message.event), WiFi.macAddress().c_str());
+            Log.infoln("Sending message %s (%d) from %s", eventName(message.event), message.time, WiFi.macAddress().c_str());
             uint8_t *address = startDeviceAddress;
             esp_err_t result = esp_now_send(peerInfo.peer_addr, (uint8_t *)&message, sizeof(message));
             if (result != ESP_OK) {
                 Log.errorln("Error sending the data");
             }
         }
+    }
+}
+
+void additionalDelayedTask(void *pvParameters) {
+    while (1) {
+        if (isStartDevice() && currentState == STATE_RUN_CHECK && ((millis() - startTime) >= 100)) {
+            Message message;
+            message.event = EVENT_RUN_CONFIRMED;
+            addStateMachineQueue(message);
+        } else if (!isStartDevice() && currentState == STATE_RUN && ((millis() - stateChangeTime) > 500)) {
+            detector.startMeasurement();
+        } else if (currentState == STATE_FINISH && ((millis() - stateChangeTime) > 8000)) {
+            Message message;
+            message.event = EVENT_TIMEOUT;
+            addStateMachineQueue(message);
+        }
+        vTaskDelay(50 / portTICK_PERIOD_MS);
     }
 }
 
@@ -364,6 +415,7 @@ void setup() {
     if (isStartDevice()) {
         xTaskCreatePinnedToCore(establishCommunicationTask, "Estab. communication", 8000, NULL, 1, NULL, ARDUINO_RUNNING_CORE);
     }
+    xTaskCreatePinnedToCore(additionalDelayedTask, "Add. delayed", 8000, NULL, 3, NULL, ARDUINO_RUNNING_CORE);
 
     // when started let's reset the peer
     Message message;

@@ -5,13 +5,16 @@ title Start Device
 state "STATE_START" as start
 state "STATE_BATTERY_LOW" as battery
 state "STATE_READY" as ready
+state "STATE_RUN_CHECK" as runcheck
 state "STATE_RUN" as run
 state "STATE_FINISH" as finish
 
 [*] --> start
-start --> ready : message (ack)
-ready --> run : laser signal
-ready --> battery : low battery
+start --> ready : message (ack)/'  '/
+start --> battery : low battery
+ready --> runcheck : object left
+runcheck --> ready : object arrived in 100ms
+runcheck --> run : object didn't arrive in 100ms
 run --> start : timeout / \nreset button
 run --> finish : message (finish)
 finish --> ready : timeout / \nreset button

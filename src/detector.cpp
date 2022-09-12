@@ -32,11 +32,11 @@ DetectedObjectState Detector::read() {
         float distance = measureDistance();
         if (distance > RANGE_THRESHOLD_CM && _prevDistance > RANGE_THRESHOLD_CM && _prevObjectDetected) {
             _prevObjectDetected = false;
-            Serial.println(distance);
+            // Serial.println(distance);
             return LEFT;
         } else if (distance <= RANGE_THRESHOLD_CM && abs(1 - distance / _prevDistance) < 0.1 && !_prevObjectDetected) {
             _prevObjectDetected = true;
-            Serial.println(distance);
+            // Serial.println(distance);
             return ARRIVED;
         }
         _prevDistance = distance;

@@ -3,14 +3,15 @@
 #define CLK 14
 #define DIO 13
 
+// https://jasonacox.github.io/TM1637TinyDisplay/examples/7-segment-animator.html
 //
-//      A
-//     ---
-//  F |   | B
-//     -G-
-//  E |   | C
-//     ---
-//      D
+//       A
+//      ---
+//   F |   | B
+//      -G-
+//   E |   | C
+//      ---
+//       D
 const uint8_t digitToSegment[] PROGMEM = {
     // XGFEDCBA
     0b00111111,  // 0
@@ -143,7 +144,16 @@ const uint8_t CONNECTING[11][4] = {
     {0x30, 0x37, 0x3d, 0x00},  // ING
     {0x3f, 0x37, 0x00, 0x39},  // NG C
     {0x37, 0x00, 0x39, 0x3f},  // G CO
-    {0x0, 0x39, 0x3f, 0x37}   //  CON
+    {0x0, 0x39, 0x3f, 0x37}    //  CON
+};
+
+const uint8_t ERROR[6][4] = {    
+    {0x79, 0x50, 0x50, 0x5c},  // Frame 1
+    {0x50, 0x50, 0x5c, 0x50},  // Frame 2
+    {0x50, 0x5c, 0x50, 0x00},  // Frame 3
+    {0x5c, 0x50, 0x00, 0x79},  // Frame 4
+    {0x50, 0x00, 0x79, 0x50},  // Frame 5
+    {0x00, 0x79, 0x50, 0x50},  // Frame 6
 };
 
 Display::Display() {
@@ -163,9 +173,9 @@ void Display::showZeroTime() {
     _mode = ZERO_TIME;
 }
 
-void Display::showTimeContinuously() {
+void Display::showTimeContinuously(uint32_t time) {
     _mode = CONTINUOUS_TIME;
-    _startTime = millis();
+    _startTime = millis() - time;
 }
 
 void Display::showTime(uint32_t time) {
@@ -189,6 +199,15 @@ void Display::showConnecting() {
     _mode = ANIMATION;
     _frames = CONNECTING;
     _framesCount = sizeof(CONNECTING) / 4;
+    _frameIdx = 0;
+    _frameDelay = 350;
+    _nextFrameMillis = millis() + _frameDelay;
+}
+
+void Display::showError() {
+    _mode = ANIMATION;
+    _frames = ERROR;
+    _framesCount = sizeof(ERROR) / 4;
     _frameIdx = 0;
     _frameDelay = 350;
     _nextFrameMillis = millis() + _frameDelay;
