@@ -5,6 +5,7 @@
 #include <WiFi.h>
 #include <Wire.h>
 #include <esp_now.h>
+#include <esp_wifi.h>
 
 #include "battery.h"
 #include "detector.h"
@@ -80,8 +81,9 @@ uint32_t measuredTime = 0;
 QueueHandle_t sendQueue;
 QueueHandle_t stateMachineEventQueue;
 
-uint8_t startDeviceAddress[] = {0x08, 0x3A, 0xF2, 0x3A, 0x81, 0xFC};
-uint8_t finishDeviceAddress[] = {0x08, 0x3A, 0xF2, 0x3A, 0x81, 0x60};
+uint8_t startDeviceAddress[] = {0x08, 0x3A, 0xF2, 0x3A, 0x81, 0xFC};    //white
+uint8_t finishDeviceAddress[] = {0x08, 0x3A, 0xF2, 0x3A, 0x81, 0x60};   //red
+// uint8_t finishDeviceAddress[] = {0x08, 0x3A, 0xF2, 0x3A, 0x5D, 0xA0}; //breadboard   
 esp_now_peer_info_t peerInfo;
 
 /**
@@ -385,6 +387,7 @@ void setup() {
 
     // communication initialization
     WiFi.mode(WIFI_MODE_STA);
+    esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_LR);
     if (esp_now_init() != ESP_OK) {
         Log.errorln("Error initializing ESP-NOW");
         return;
