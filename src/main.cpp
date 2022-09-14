@@ -81,9 +81,9 @@ uint32_t measuredTime = 0;
 QueueHandle_t sendQueue;
 QueueHandle_t stateMachineEventQueue;
 
-uint8_t startDeviceAddress[] = {0x08, 0x3A, 0xF2, 0x3A, 0x81, 0xFC};    //white
-uint8_t finishDeviceAddress[] = {0x08, 0x3A, 0xF2, 0x3A, 0x81, 0x60};   //red
-// uint8_t finishDeviceAddress[] = {0x08, 0x3A, 0xF2, 0x3A, 0x5D, 0xA0}; //breadboard   
+uint8_t startDeviceAddress[] = {0x08, 0x3A, 0xF2, 0x3A, 0x81, 0xFC};   // white
+uint8_t finishDeviceAddress[] = {0x08, 0x3A, 0xF2, 0x3A, 0x81, 0x60};  // red
+// uint8_t finishDeviceAddress[] = {0x08, 0x3A, 0xF2, 0x3A, 0x5D, 0xA0}; //breadboard
 esp_now_peer_info_t peerInfo;
 
 /**
@@ -120,7 +120,7 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
 void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
     Message message;
     memcpy(&message, incomingData, sizeof(message));
-    Log.infoln("Received message event %s and time %d", eventName(message.event), message.time);
+    Log.infoln("Received message event %s (%d)", eventName(message.event), message.time);
     addStateMachineQueue(message);
 }
 
@@ -143,14 +143,37 @@ void readResetButtonTask(void *pvParameters) {
 void updateRgbLedTask(void *pvParameters) {
     while (1) {
         rgbLed.update();
-        vTaskDelay(10 / portTICK_PERIOD_MS);
+        vTaskDelay(50 / portTICK_PERIOD_MS);
     }
 }
 
 void updateBatteryTask(void *pvParameters) {
     while (1) {
         battery.update();
-        Log.infoln("Battery value %d prct", battery.getPercentage());
+        int prct = battery.getPercentage();
+        for (int i = 0; i < 4; i++) {
+            vTaskDelay(1000 / portTICK_PERIOD_MS);
+            battery.update();
+            prct = max(prct, battery.getPercentage());
+        }
+
+        Log.infoln("Battery value %d prct", prct);
+        if (prct < 10) {
+            Log.infoln("Battery REDb");
+            rgbLed.setBlinkingColor(CRGB::Red, 20);
+        } else if (prct < 20) {
+            Log.infoln("Battery RED");
+            rgbLed.setSolidColor(CRGB::Red, 20);
+        } else if (prct < 40) {
+            Log.infoln("Battery YELLOW");
+            rgbLed.setSolidColor(CRGB::Yellow, 20);
+        } else if (prct < 60) {
+            Log.infoln("Battery GreenYellow");
+            rgbLed.setSolidColor(CRGB::GreenYellow, 20);
+        } else {
+            Log.infoln("Battery GREEN");
+            rgbLed.setSolidColor(CRGB::Green, 20);
+        }
         vTaskDelay(1000 * 60 / portTICK_PERIOD_MS);
     }
 }
@@ -227,8 +250,8 @@ void stateMachineStartDeviceTask(void *pvParameters) {
                 default:
                     break;
             }
+            Log.infoln("SM: new state %s", stateName(currentState));
         }
-        Log.infoln("SM: new state %s", stateName(currentState));
     }
 }
 
@@ -285,8 +308,8 @@ void stateMachineFinishDeviceTask(void *pvParameters) {
                 default:
                     break;
             }
+            Log.infoln("SM: new state %s", stateName(currentState));
         }
-        Log.infoln("SM: new state %s", stateName(currentState));
     }
 }
 
@@ -324,7 +347,7 @@ void establishCommunicationTask(void *pvParameters) {
             Log.infoln("Establishing communication...");
             addSendQueue(message);
         }
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
+        vTaskDelay(300 / portTICK_PERIOD_MS);
     }
 }
 
@@ -386,6 +409,8 @@ void setup() {
     detector.init();
 
     // communication initialization
+    WiFi.begin();
+    delay(500);
     WiFi.mode(WIFI_MODE_STA);
     esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_LR);
     if (esp_now_init() != ESP_OK) {
@@ -414,7 +439,7 @@ void setup() {
     xTaskCreatePinnedToCore(stateMachineTask, "State machine", 8000, NULL, 2, NULL, ARDUINO_RUNNING_CORE);
     xTaskCreatePinnedToCore(readDetectorTask, "Read detector", 8000, NULL, 6, NULL, ARDUINO_RUNNING_CORE);
     xTaskCreatePinnedToCore(readResetButtonTask, "Reset button", 8000, NULL, 2, NULL, ARDUINO_RUNNING_CORE);
-    xTaskCreatePinnedToCore(communicationTask, "Communication", 8000, NULL, 3, NULL, ARDUINO_RUNNING_CORE);
+    xTaskCreatePinnedToCore(communicationTask, "Communication", 8000, NULL, 4, NULL, 0);
     if (isStartDevice()) {
         xTaskCreatePinnedToCore(establishCommunicationTask, "Estab. communication", 8000, NULL, 1, NULL, ARDUINO_RUNNING_CORE);
     }
@@ -424,9 +449,6 @@ void setup() {
     Message message;
     message.event = EVENT_BUTTON_RESET;
     addSendQueue(message);
-
-    // TODO: remove
-    rgbLed.setBlinkingColor(CRGB::Green, 15);
 
     // start the SM
     currentState = STATE_START;

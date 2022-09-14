@@ -26,13 +26,13 @@ void RgbLed::update() {
         FastLED.show();
         FastLED.setBrightness(_brightness);
     } else if (_visual == blinking) {
-        if (_callbackCnt < 30) {            
+        if (_callbackCnt < 6) {            
             FastLED.setBrightness(_brightness);
         } else {            
             FastLED.setBrightness(0);
         }
         FastLED.show();
-        if (_callbackCnt > 60) {
+        if (_callbackCnt > 12) {
             _callbackCnt = 0;
         } else {
             _callbackCnt++;
