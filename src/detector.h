@@ -5,13 +5,13 @@
 
 #define TRIGGER_PIN 26
 #define ECHO_PIN 25
-#define RANGE_THRESHOLD_CM 70
+#define RANGE_THRESHOLD_CM 60
 #define SOUND_SPEED_HALF 0.017
 
 typedef enum {
-  NONE,
-  ARRIVED,
-  LEFT
+    NONE,
+    ARRIVED,
+    LEFT
 } DetectedObjectState;
 
 class Detector {
@@ -20,13 +20,14 @@ class Detector {
     void init();
     DetectedObjectState read();
     void startMeasurement();
-    void stopMeasurement();    
+    void stopMeasurement();
 
    private:
     bool _prevObjectDetected;
     bool _measurementEnabled = false;
-    float measureDistance(); 
-    float _prevDistance;   
+    float measureDistance();
+    float _prevDistance;
+    float _prevPrevDistance;
     unsigned long _detectorPulseInTimeout;
 };
 

@@ -14,7 +14,7 @@
 #include "rgbled.h"
 
 // Constants
-#define DEVICE_TYPE 0  // defines whether is it start (0) or finish (1) device
+#define DEVICE_TYPE 0  // defines whether is it start (0) or finish (1) device 
 
 #define RESET_BUTTON_PIN 0  // ext. reset button pin
 
@@ -181,7 +181,7 @@ void updateBatteryTask(void *pvParameters) {
 void updateDisplay(void *pvParameters) {
     while (1) {
         display.update();
-        vTaskDelay(25 / portTICK_PERIOD_MS);
+        vTaskDelay(10 / portTICK_PERIOD_MS);
     }
 }
 
@@ -216,6 +216,7 @@ void stateMachineStartDeviceTask(void *pvParameters) {
                         currentState = STATE_RUN_CHECK;
                         stateChangeTime = millis();
                         startTime = millis();
+                        display.showTimeContinuously(millis() - startTime);
                     }
                     break;
                 case STATE_RUN_CHECK:
@@ -227,7 +228,7 @@ void stateMachineStartDeviceTask(void *pvParameters) {
                         detector.stopMeasurement();
                         message.time = millis() - startTime;
                         addSendQueue(message);
-                        display.showTimeContinuously(millis() - startTime);
+                        // display.showTimeContinuously(millis() - startTime);
                     }
                     break;
                 case STATE_RUN:
@@ -334,7 +335,7 @@ void readDetectorTask(void *pvParameters) {
             addStateMachineQueue(message);
             Log.infoln("Object left");
         }
-        vTaskDelay(10 / portTICK_PERIOD_MS);
+        vTaskDelay(5 / portTICK_PERIOD_MS);
     }
 }
 
