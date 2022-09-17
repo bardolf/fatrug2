@@ -27,6 +27,7 @@ class Detector {
     bool _measurementEnabled = false;
     float measureDistance(); 
     float _prevDistance;   
+    unsigned long _detectorPulseInTimeout;
 };
 
 #endif

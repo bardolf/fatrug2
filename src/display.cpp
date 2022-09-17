@@ -222,7 +222,7 @@ void Display::update() {
             _tm1637->showNumberDec(_number);
             break;
         case CONTINUOUS_TIME:
-            showTimeInternal(millis() - _startTime);
+            showTimeInternal(millis() - _startTime);            
             break;
         case TIME:
             showTimeInternal(_time);

@@ -1,6 +1,7 @@
 #include "detector.h"
 
 Detector::Detector() {
+    _detectorPulseInTimeout = 2 * (unsigned long)((float)RANGE_THRESHOLD_CM / (float)SOUND_SPEED_HALF);
 }
 
 void Detector::startMeasurement() {
@@ -23,7 +24,15 @@ float Detector::measureDistance() {
     digitalWrite(TRIGGER_PIN, HIGH);
     delayMicroseconds(10);
     digitalWrite(TRIGGER_PIN, LOW);
-    long duration = pulseIn(ECHO_PIN, HIGH);
+    // Serial.print(millis());
+    // Serial.print("ms ");
+    long duration = pulseIn(ECHO_PIN, HIGH, _detectorPulseInTimeout);
+    // Serial.print(millis());
+    // Serial.print("ms ~ ");
+    // Serial.println(duration);
+    if (duration == 0) {  // pulseIn timeout
+        return 10 * RANGE_THRESHOLD_CM;
+    }
     return duration * SOUND_SPEED_HALF;
 }
 
@@ -34,7 +43,7 @@ DetectedObjectState Detector::read() {
             _prevObjectDetected = false;
             // Serial.println(distance);
             return LEFT;
-        } else if (distance <= RANGE_THRESHOLD_CM && abs(1 - distance / _prevDistance) < 0.1 && !_prevObjectDetected) {
+        } else if (distance <= RANGE_THRESHOLD_CM && _prevDistance <= RANGE_THRESHOLD_CM && abs(1 - distance / _prevDistance) < 0.05 &&  !_prevObjectDetected) {
             _prevObjectDetected = true;
             // Serial.println(distance);
             return ARRIVED;

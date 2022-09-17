@@ -270,7 +270,6 @@ void stateMachineFinishDeviceTask(void *pvParameters) {
                 case STATE_START:
                     detector.stopMeasurement();
                     if (message.event == EVENT_MESSAGE_INIT) {
-                        vTaskDelay(500 / portTICK_PERIOD_MS);
                         Message message;
                         message.event = EVENT_MESSAGE_ACK;
                         addSendQueue(message);
@@ -409,8 +408,6 @@ void setup() {
     detector.init();
 
     // communication initialization
-    WiFi.begin();
-    delay(500);
     WiFi.mode(WIFI_MODE_STA);
     esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_LR);
     if (esp_now_init() != ESP_OK) {
