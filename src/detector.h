@@ -5,7 +5,7 @@
 
 #define TRIGGER_PIN 26
 #define ECHO_PIN 25
-#define RANGE_THRESHOLD_CM 60
+#define RANGE_THRESHOLD_CM 70
 #define SOUND_SPEED_HALF 0.017
 
 typedef enum {
