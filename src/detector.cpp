@@ -8,7 +8,7 @@ Detector::Detector() {
 
 void Detector::startMeasurement() {
     _prevObjectDetected = false;
-    _measurementEnabled = true;    
+    _measurementEnabled = true;
     _prevPrevDistance = _prevDistance = _distance = 0;
 }
 
@@ -48,16 +48,18 @@ DetectedObjectState Detector::read() {
         _prevPrevDistance = _prevDistance;
         _prevDistance = _distance;
         _distance = measureDistance();
-      
+
         _prevPrevTime = _prevTime;
         _prevTime = _time;
         _time = millis();
 
-        if (_distance > RANGE_THRESHOLD_CM && _prevDistance > RANGE_THRESHOLD_CM && _prevPrevDistance > RANGE_THRESHOLD_CM && _prevObjectDetected) {
+        if (_distance > 0 && _prevDistance > 0 && _prevPrevDistance > 0 &&
+            _distance > RANGE_THRESHOLD_CM && _prevDistance > RANGE_THRESHOLD_CM && _prevPrevDistance > RANGE_THRESHOLD_CM && _prevObjectDetected) {
             _prevObjectDetected = false;
             Log.infoln("LEFT %F cm (%Fcm, %Fcm)", _distance, _prevDistance, _prevPrevDistance);
             return LEFT;
-        } else if (_distance <= RANGE_THRESHOLD_CM && _prevDistance <= RANGE_THRESHOLD_CM && _prevPrevDistance <= RANGE_THRESHOLD_CM &&
+        } else if (_distance > 0 && _prevDistance > 0 && _prevPrevDistance > 0 &&
+                   _distance <= RANGE_THRESHOLD_CM && _prevDistance <= RANGE_THRESHOLD_CM && _prevPrevDistance <= RANGE_THRESHOLD_CM &&
                    abs(1 - _distance / _prevDistance) < 0.05 && abs(1 - _prevPrevDistance / _prevPrevDistance) < 0.05 && !_prevObjectDetected) {
             _prevObjectDetected = true;
             Log.infoln("ARRIVED %F cm (%Fcm, %Fcm)", _distance, _prevDistance, _prevPrevDistance);
