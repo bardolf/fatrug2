@@ -21,14 +21,23 @@ class Detector {
     DetectedObjectState read();
     void startMeasurement();
     void stopMeasurement();
+    uint32_t getCompensationTime();
 
    private:
     bool _prevObjectDetected;
     bool _measurementEnabled = false;
     float measureDistance();
+    unsigned long _detectorPulseInTimeout;
+
+    float _distance;
     float _prevDistance;
     float _prevPrevDistance;
-    unsigned long _detectorPulseInTimeout;
+    
+    uint32_t _time;
+    uint32_t _prevTime;    
+    uint32_t _prevPrevTime;
+    
+
 };
 
 #endif

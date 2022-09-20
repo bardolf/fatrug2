@@ -215,8 +215,8 @@ void stateMachineStartDeviceTask(void *pvParameters) {
                     if (message.event == EVENT_DETECTOR_OBJECT_LEFT) {
                         currentState = STATE_RUN_CHECK;
                         stateChangeTime = millis();
-                        startTime = millis();
-                        display.showTimeContinuously(millis() - startTime);
+                        startTime = millis() - message.time;        //we have started message.time ago
+                        display.showTimeContinuously(message.time); //show correct time starting with message.time
                     }
                     break;
                 case STATE_RUN_CHECK:
@@ -227,13 +227,12 @@ void stateMachineStartDeviceTask(void *pvParameters) {
                         stateChangeTime = millis();
                         detector.stopMeasurement();
                         message.time = millis() - startTime;
-                        addSendQueue(message);
-                        // display.showTimeContinuously(millis() - startTime);
+                        addSendQueue(message);                        
                     }
                     break;
                 case STATE_RUN:
                     if (message.event == EVENT_DETECTOR_OBJECT_ARRIVED) {
-                        measuredTime = millis() - startTime;
+                        measuredTime = millis() - startTime - message.time; //current time - start time - detector compensation time
                         display.showTime(measuredTime);
                         message.event = EVENT_MESSAGE_FINISH;
                         message.time = measuredTime;
@@ -283,6 +282,7 @@ void stateMachineFinishDeviceTask(void *pvParameters) {
                     display.showZeroTime();
                     if (message.event == EVENT_RUN_CONFIRMED) {
                         display.showTimeContinuously(message.time);
+                        detector.startMeasurement();
                         currentState = STATE_RUN;
                         stateChangeTime = millis();
                         startTime = message.time;
@@ -290,8 +290,7 @@ void stateMachineFinishDeviceTask(void *pvParameters) {
                     break;
                 case STATE_RUN:
                     if (message.event == EVENT_DETECTOR_OBJECT_ARRIVED) {
-                        detector.stopMeasurement();
-                        addSendQueue(message);
+                        detector.stopMeasurement();                       
                     } else if (message.event == EVENT_MESSAGE_FINISH) {
                         measuredTime = message.time;
                         display.showTime(measuredTime);
@@ -327,11 +326,16 @@ void readDetectorTask(void *pvParameters) {
         if (detectedObjectState == ARRIVED) {
             Message message;
             message.event = EVENT_DETECTOR_OBJECT_ARRIVED;
+            message.time = detector.getCompensationTime();
+            Log.info("Compensation time (arrived) %d", detector.getCompensationTime());
+            addSendQueue(message);
             addStateMachineQueue(message);
             Log.infoln("Object arrived");
         } else if (detectedObjectState == LEFT) {
             Message message;
             message.event = EVENT_DETECTOR_OBJECT_LEFT;
+            message.time = detector.getCompensationTime();            
+            Log.info("Compensation time (arrived) %d", detector.getCompensationTime());
             addStateMachineQueue(message);
             Log.infoln("Object left");
         }
@@ -371,8 +375,6 @@ void additionalDelayedTask(void *pvParameters) {
             Message message;
             message.event = EVENT_RUN_CONFIRMED;
             addStateMachineQueue(message);
-        } else if (!isStartDevice() && currentState == STATE_RUN && ((millis() - stateChangeTime) > 500)) {
-            detector.startMeasurement();
         } else if (currentState == STATE_FINISH && ((millis() - stateChangeTime) > 8000)) {
             Message message;
             message.event = EVENT_TIMEOUT;
@@ -388,7 +390,7 @@ void setup() {
     // initialize logging
     while (!Serial && !Serial.available()) {
     }
-    Log.begin(LOG_LEVEL_INFO, &Serial);
+    Log.begin(LOG_LEVEL_ERROR, &Serial);
     Log.setPrefix(printPrefix);
     Log.setShowLevel(false);
     Log.infoln("START");

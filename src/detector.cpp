@@ -8,7 +8,8 @@ Detector::Detector() {
 
 void Detector::startMeasurement() {
     _prevObjectDetected = false;
-    _measurementEnabled = true;
+    _measurementEnabled = true;    
+    _prevPrevDistance = _prevDistance = _distance = 0;
 }
 
 void Detector::stopMeasurement() {
@@ -18,6 +19,10 @@ void Detector::stopMeasurement() {
 void Detector::init() {
     pinMode(TRIGGER_PIN, OUTPUT);
     pinMode(ECHO_PIN, INPUT_PULLDOWN);
+}
+
+uint32_t Detector::getCompensationTime() {
+    return _time - _prevPrevTime;
 }
 
 float Detector::measureDistance() {
@@ -40,19 +45,24 @@ float Detector::measureDistance() {
 
 DetectedObjectState Detector::read() {
     if (_measurementEnabled) {
-        float distance = measureDistance();
-        if (distance > RANGE_THRESHOLD_CM && _prevDistance > RANGE_THRESHOLD_CM && _prevPrevDistance > RANGE_THRESHOLD_CM && _prevObjectDetected) {
+        _prevPrevDistance = _prevDistance;
+        _prevDistance = _distance;
+        _distance = measureDistance();
+      
+        _prevPrevTime = _prevTime;
+        _prevTime = _time;
+        _time = millis();
+
+        if (_distance > RANGE_THRESHOLD_CM && _prevDistance > RANGE_THRESHOLD_CM && _prevPrevDistance > RANGE_THRESHOLD_CM && _prevObjectDetected) {
             _prevObjectDetected = false;
-            Log.infoln("LEFT %F cm (%Fcm)", distance, _prevDistance);
+            Log.infoln("LEFT %F cm (%Fcm, %Fcm)", _distance, _prevDistance, _prevPrevDistance);
             return LEFT;
-        } else if (distance <= RANGE_THRESHOLD_CM && _prevDistance <= RANGE_THRESHOLD_CM && _prevPrevDistance <= RANGE_THRESHOLD_CM &&
-                   abs(1 - distance / _prevDistance) < 0.05 && abs(1 - _prevPrevDistance / _prevPrevDistance) < 0.05 && !_prevObjectDetected) {
+        } else if (_distance <= RANGE_THRESHOLD_CM && _prevDistance <= RANGE_THRESHOLD_CM && _prevPrevDistance <= RANGE_THRESHOLD_CM &&
+                   abs(1 - _distance / _prevDistance) < 0.05 && abs(1 - _prevPrevDistance / _prevPrevDistance) < 0.05 && !_prevObjectDetected) {
             _prevObjectDetected = true;
-            Log.infoln("ARRIVED %Fcm (%Fcm)", distance, _prevDistance);
+            Log.infoln("ARRIVED %F cm (%Fcm, %Fcm)", _distance, _prevDistance, _prevPrevDistance);
             return ARRIVED;
         }
-        _prevPrevDistance = _prevDistance;
-        _prevDistance = distance;
     }
     return NONE;
 }
