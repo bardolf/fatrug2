@@ -60,7 +60,7 @@ DetectedObjectState Detector::read() {
             return LEFT;
         } else if (_distance > 0 && _prevDistance > 0 && _prevPrevDistance > 0 &&
                    _distance <= RANGE_THRESHOLD_CM && _prevDistance <= RANGE_THRESHOLD_CM && _prevPrevDistance <= RANGE_THRESHOLD_CM &&
-                   abs(1 - _distance / _prevDistance) < 0.05 && abs(1 - _prevPrevDistance / _prevPrevDistance) < 0.05 && !_prevObjectDetected) {
+                   abs(1 - _distance / _prevDistance) < DISTANCE_RELATIVE_TOLERANCE && abs(1 - _prevPrevDistance / _prevPrevDistance) < DISTANCE_RELATIVE_TOLERANCE && !_prevObjectDetected) {
             _prevObjectDetected = true;
             Log.infoln("ARRIVED %F cm (%Fcm, %Fcm)", _distance, _prevDistance, _prevPrevDistance);
             return ARRIVED;

@@ -7,6 +7,7 @@
 #define ECHO_PIN 25
 #define RANGE_THRESHOLD_CM 70
 #define SOUND_SPEED_HALF 0.017
+#define DISTANCE_RELATIVE_TOLERANCE 0.2
 
 typedef enum {
     NONE,
